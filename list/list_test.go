@@ -1,51 +1,161 @@
 package list
 
 import (
-	"reflect"
+	"context"
 	"testing"
+	"time"
 
-	utility "github.com/adelmoradian/kln/utility"
-
+	"k8s.io/apimachinery/pkg/api/equality"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
+var (
+	resourceCustom1 = resourceIdentifier{
+		gvr: schema.GroupVersionResource{
+			Group:    "agroup",
+			Version:  "aversion",
+			Resource: "akinds",
+		},
+		apiVersion: "agroup/aversion",
+		kind:       "AKind",
+		metadata:   map[string]interface{}{"namespace": "ns", "name": "name1"},
+		status: map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+
+	resourceCustom2 = resourceIdentifier{
+		gvr: schema.GroupVersionResource{
+			Group:    "agroup",
+			Version:  "aversion",
+			Resource: "akinds",
+		},
+		apiVersion: "agroup/aversion",
+		kind:       "AKind",
+		metadata:   map[string]interface{}{"namespace": "ns", "name": "name2"},
+		status: map[string]interface{}{
+			"status": map[string]interface{}{
+				"baz": "foo",
+			},
+		},
+	}
+
+	resourceCustom3 = resourceIdentifier{
+		gvr: schema.GroupVersionResource{
+			Group:    "agroup",
+			Version:  "aversion",
+			Resource: "akinds",
+		},
+		apiVersion: "agroup/aversion",
+		kind:       "AKind",
+		metadata:   map[string]interface{}{"namespace": "ns2", "name": "name3"},
+		status: map[string]interface{}{
+			"status": map[string]interface{}{
+				"baz": "fail",
+			},
+		},
+	}
+)
+
+type listTestCases struct {
+	name               string
+	ri                 resourceIdentifier
+	wantResponse       []map[string]interface{}
+	wantResponseLength int
+}
+
 func TestListResources(t *testing.T) {
-	client := utility.SetupFakeDynamicClient(t, utility.RealGVRs, utility.FakeGVRs)
-	responseMap := utility.ApplyResources(t, client, utility.RealGVRs)
+	client := setupFakeDynamicClient(t, resourceCustom1)
+	manifestCustom := newUnstructured(t, resourceCustom1, time.Now().Add(-10*time.Minute).Format(RFC3339))
+	manifestCustom2 := newUnstructured(t, resourceCustom2, time.Now().Add(-40*time.Minute).Format(RFC3339))
+	manifestCustom3 := newUnstructured(t, resourceCustom3, time.Now().Add(-70*time.Minute).Format(RFC3339))
+	responseCustom1 := ApplyResource(t, client, resourceCustom1, manifestCustom)
+	responseCustom2 := ApplyResource(t, client, resourceCustom2, manifestCustom2)
+	responseCustom3 := ApplyResource(t, client, resourceCustom3, manifestCustom3)
 
-	t.Run("lists existing resources associated with a gvr", func(t *testing.T) {
-		want := responseMap
-		gotMap := make(map[string]unstructured.Unstructured)
-		for _, gvr := range utility.RealGVRs {
-			got, err := ListResources(client, gvr)
-			if err != nil {
-				t.Errorf("got error %s\n", err.Error())
+	listTests := []listTestCases{
+		{
+			name:               "finds resource given only a valid gvr",
+			ri:                 resourceIdentifier{gvr: resourceCustom1.gvr},
+			wantResponseLength: 3,
+			wantResponse:       []map[string]interface{}{responseCustom1.Object, responseCustom2.Object, responseCustom3.Object},
+		},
+		{
+			name:               "returns items that are older than 0.5 hours",
+			ri:                 resourceIdentifier{gvr: resourceCustom1.gvr, age: 0.5},
+			wantResponseLength: 2,
+			wantResponse:       []map[string]interface{}{responseCustom2.Object, responseCustom3.Object},
+		},
+		{
+			name:               "returns items based on metadata",
+			ri:                 resourceIdentifier{gvr: resourceCustom1.gvr, metadata: map[string]interface{}{"namespace": "ns"}},
+			wantResponseLength: 2,
+			wantResponse:       []map[string]interface{}{responseCustom1.Object, responseCustom2.Object},
+		},
+	}
+
+	for _, tc := range listTests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _ := ListResources(client, tc.ri)
+			if tc.wantResponseLength != len(got) {
+				t.Errorf("Expected %d items but got %d", tc.wantResponseLength, len(got))
 			}
-			for _, item := range got.Items {
-				if !reflect.DeepEqual(item, want[item.Object["kind"].(string)]) {
-					t.Errorf("got %v\n\n want %v\n", item, want[item.Object["kind"].(string)])
+			for _, wantItem := range tc.wantResponse {
+				if !equalityCheck(wantItem, got) {
+					t.Errorf("did not find %s in %v\n", wantItem, got)
 				}
-				gotMap[got.GetKind()] = item
 			}
-		}
+		})
+	}
+}
 
-		for _, item := range gotMap {
-			a := item.Object["kind"].(string)
-			if !reflect.DeepEqual(item, want[a]) {
-				t.Errorf("got %v\n\n\n want %v", item, want[a])
-			}
-		}
-	})
+func setupFakeDynamicClient(t *testing.T, riList ...resourceIdentifier) *dynamicfake.FakeDynamicClient {
+	t.Helper()
+	scheme := runtime.NewScheme()
+	for _, ri := range riList {
+		scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: ri.gvr.Group, Version: ri.gvr.Version, Kind: ri.kind + "List"}, &unstructured.Unstructured{})
+	}
+	client := dynamicfake.NewSimpleDynamicClient(scheme)
+	return client
+}
 
-	t.Run("throws error if no resources found for a given gvr", func(t *testing.T) {
-		for _, gvr := range utility.FakeGVRs {
-			got, err := ListResources(client, gvr)
-			if err == nil {
-				t.Error("Should get error but did not")
-			}
-			if got != nil {
-				t.Errorf("Should get nil but instead got %s", got.Items)
-			}
+func ApplyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri resourceIdentifier, rm *unstructured.Unstructured) *unstructured.Unstructured {
+	t.Helper()
+	ns := ri.metadata["namespace"].(string)
+	response, err := client.Resource(ri.gvr).Namespace(ns).Create(context.TODO(), rm, v1.CreateOptions{})
+	if err != nil {
+		t.Error(err)
+	}
+	return response
+}
+
+func newUnstructured(t *testing.T, ri resourceIdentifier, creationTimestamp string) *unstructured.Unstructured {
+	t.Helper()
+	ns := ri.metadata["namespace"].(string)
+	name := ri.metadata["name"].(string)
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": ri.apiVersion,
+			"kind":       ri.kind,
+			"metadata": map[string]interface{}{
+				"creationTimestamp": creationTimestamp,
+				"namespace":         ns,
+				"name":              name,
+			},
+			"status": ri.status,
+		},
+	}
+}
+
+func equalityCheck(wantItem map[string]interface{}, got []unstructured.Unstructured) bool {
+	for _, gotItem := range got {
+		if equality.Semantic.DeepEqual(gotItem.Object, wantItem) {
+			return true
 		}
-	})
+	}
+	return false
 }
