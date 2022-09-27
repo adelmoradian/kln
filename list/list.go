@@ -33,6 +33,7 @@ func ListResources(client dynamic.Interface, resourceFilter resourceIdentifier) 
 	}
 	responseList, err = filterByAge(responseFromServer, resourceFilter.age)
 	responseList = filterByMetadata(responseList, resourceFilter.metadata)
+	responseList = filterByStatus(responseList, resourceFilter.status)
 	return responseList, err
 }
 
@@ -71,18 +72,34 @@ func filterByMetadata(responseFromServer []unstructured.Unstructured, metadataFi
 	return responseList
 }
 
+func filterByStatus(responseFromServer []unstructured.Unstructured, statusFilter map[string]interface{}) []unstructured.Unstructured {
+	var responseList []unstructured.Unstructured
+	if statusFilter == nil {
+		return responseFromServer
+	}
+	for _, item := range responseFromServer {
+		objectMeta := item.Object["status"].(map[string]interface{})
+		if mapIntersectionCheck(statusFilter, objectMeta) {
+			responseList = append(responseList, item)
+		}
+	}
+	return responseList
+}
+
 func mapIntersectionCheck(mapA, mapB map[string]interface{}) bool {
 	for k, vA := range mapA {
 		if vB, ok := mapB[k]; ok && typeof(vA) == typeof(vB) {
 			if typeof(vA) == "map[string]interface {}" {
 				return mapIntersectionCheck(vA.(map[string]interface{}), vB.(map[string]interface{}))
 			}
-			if vA == vB {
-				return true
+			if vA != vB {
+				return false
 			}
+		} else {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func typeof(v interface{}) string {

@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	resourceCustom1 = resourceIdentifier{
+	resource1 = resourceIdentifier{
 		gvr: schema.GroupVersionResource{
 			Group:    "agroup",
 			Version:  "aversion",
@@ -23,12 +23,19 @@ var (
 		apiVersion: "agroup/aversion",
 		kind:       "AKind",
 		metadata:   map[string]interface{}{"namespace": "ns", "name": "name1"},
-		status: map[string]interface{}{
+		spec: map[string]interface{}{
 			"foo": "bar",
+			"baz": map[string]interface{}{
+				"foo": "bar",
+			},
+		},
+		status: map[string]interface{}{
+			"foo":    "bar",
+			"tomato": "potato",
 		},
 	}
 
-	resourceCustom2 = resourceIdentifier{
+	resource2 = resourceIdentifier{
 		gvr: schema.GroupVersionResource{
 			Group:    "agroup",
 			Version:  "aversion",
@@ -37,14 +44,19 @@ var (
 		apiVersion: "agroup/aversion",
 		kind:       "AKind",
 		metadata:   map[string]interface{}{"namespace": "ns", "name": "name2"},
+		spec: map[string]interface{}{
+			"foo": "bar",
+		},
 		status: map[string]interface{}{
+			"foo": "bar",
 			"status": map[string]interface{}{
-				"baz": "foo",
+				"baz":    map[string]interface{}{"deep": "nest"},
+				"tomato": "potato",
 			},
 		},
 	}
 
-	resourceCustom3 = resourceIdentifier{
+	resource3 = resourceIdentifier{
 		gvr: schema.GroupVersionResource{
 			Group:    "agroup",
 			Version:  "aversion",
@@ -52,61 +64,135 @@ var (
 		},
 		apiVersion: "agroup/aversion",
 		kind:       "AKind",
-		metadata:   map[string]interface{}{"namespace": "ns2", "name": "name3"},
+		metadata:   map[string]interface{}{"namespace": "ns3", "name": "name3"},
 		status: map[string]interface{}{
+			"foo": "notBar",
 			"status": map[string]interface{}{
 				"baz": "fail",
 			},
 		},
 	}
+
+	resourceFake = resourceIdentifier{
+		gvr: schema.GroupVersionResource{
+			Group:    "fake",
+			Version:  "fakeVersion",
+			Resource: "fakes",
+		},
+		apiVersion: "fake/fakeVersion",
+		kind:       "Fake",
+	}
 )
 
 type listTestCases struct {
-	name               string
-	ri                 resourceIdentifier
-	wantResponse       []map[string]interface{}
-	wantResponseLength int
+	name string
+	ri   resourceIdentifier
+	want []map[string]interface{}
+	skip bool
 }
 
 func TestListResources(t *testing.T) {
-	client := setupFakeDynamicClient(t, resourceCustom1)
-	manifestCustom := newUnstructured(t, resourceCustom1, time.Now().Add(-10*time.Minute).Format(RFC3339))
-	manifestCustom2 := newUnstructured(t, resourceCustom2, time.Now().Add(-40*time.Minute).Format(RFC3339))
-	manifestCustom3 := newUnstructured(t, resourceCustom3, time.Now().Add(-70*time.Minute).Format(RFC3339))
-	responseCustom1 := ApplyResource(t, client, resourceCustom1, manifestCustom)
-	responseCustom2 := ApplyResource(t, client, resourceCustom2, manifestCustom2)
-	responseCustom3 := ApplyResource(t, client, resourceCustom3, manifestCustom3)
+	client := setupFakeDynamicClient(t, resource1, resourceFake)
+	manifest1 := newUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
+	manifest2 := newUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
+	manifest3 := newUnstructured(t, resource3, time.Now().Add(-70*time.Minute).Format(RFC3339))
+	response1 := ApplyResource(t, client, resource1, manifest1)
+	response2 := ApplyResource(t, client, resource2, manifest2)
+	response3 := ApplyResource(t, client, resource3, manifest3)
 
 	listTests := []listTestCases{
 		{
-			name:               "finds resource given only a valid gvr",
-			ri:                 resourceIdentifier{gvr: resourceCustom1.gvr},
-			wantResponseLength: 3,
-			wantResponse:       []map[string]interface{}{responseCustom1.Object, responseCustom2.Object, responseCustom3.Object},
+			name: "happy - finds resources given only gvr",
+			ri:   resourceIdentifier{gvr: resource1.gvr},
+			want: []map[string]interface{}{response1.Object, response2.Object, response3.Object},
+			skip: false,
 		},
 		{
-			name:               "returns items that are older than 0.5 hours",
-			ri:                 resourceIdentifier{gvr: resourceCustom1.gvr, age: 0.5},
-			wantResponseLength: 2,
-			wantResponse:       []map[string]interface{}{responseCustom2.Object, responseCustom3.Object},
+			name: "sad - finds resources given only gvr",
+			ri:   resourceIdentifier{gvr: resourceFake.gvr},
+			want: []map[string]interface{}{},
+			skip: false,
 		},
 		{
-			name:               "returns items based on metadata",
-			ri:                 resourceIdentifier{gvr: resourceCustom1.gvr, metadata: map[string]interface{}{"namespace": "ns"}},
-			wantResponseLength: 2,
-			wantResponse:       []map[string]interface{}{responseCustom1.Object, responseCustom2.Object},
+			name: "happy - finds resources given minAge",
+			ri:   resourceIdentifier{gvr: resource1.gvr, age: 0.5},
+			want: []map[string]interface{}{response2.Object, response3.Object},
+			skip: false,
+		},
+		{
+			name: "sad - finds resources given minAge",
+			ri:   resourceIdentifier{gvr: resource1.gvr, age: 1.5},
+			want: []map[string]interface{}{},
+			skip: false,
+		},
+		{
+			name: "happy - finds resources given metadata",
+			ri:   resourceIdentifier{gvr: resource1.gvr, metadata: map[string]interface{}{"namespace": "ns"}},
+			want: []map[string]interface{}{response1.Object, response2.Object},
+			skip: false,
+		},
+		{
+			name: "sad - finds resources given metadata",
+			ri:   resourceIdentifier{gvr: resource1.gvr, metadata: map[string]interface{}{"namespace": "ns", "name": "fake"}},
+			want: []map[string]interface{}{},
+			skip: false,
+		},
+		{
+			name: "happy - finds resources given minAge and metadata",
+			ri:   resourceIdentifier{gvr: resource1.gvr, metadata: map[string]interface{}{"namespace": "ns"}, age: 0.5},
+			want: []map[string]interface{}{response2.Object},
+			skip: false,
+		},
+		{
+			name: "sad - finds resources given minAge and metadata",
+			ri:   resourceIdentifier{gvr: resource1.gvr, metadata: map[string]interface{}{"name": "fake"}, age: 0.5},
+			want: []map[string]interface{}{},
+			skip: false,
+		},
+		{
+			name: "happy - finds resources given status",
+			ri:   resourceIdentifier{gvr: resource1.gvr, status: map[string]interface{}{"foo": "bar"}},
+			want: []map[string]interface{}{response1.Object, response2.Object},
+			skip: false,
+		},
+		{
+			name: "happy - finds resources given nested status",
+			ri:   resourceIdentifier{gvr: resource1.gvr, status: map[string]interface{}{"status": map[string]interface{}{"baz": map[string]interface{}{"deep": "nest"}}}},
+			want: []map[string]interface{}{response2.Object},
+			skip: false,
+		},
+		{
+			name: "happy - finds correct resources given multiple resources with desired key-value pair",
+			ri:   resourceIdentifier{gvr: resource1.gvr, status: map[string]interface{}{"tomato": "potato"}},
+			want: []map[string]interface{}{response1.Object},
+			skip: false,
+		},
+		{
+			name: "happy - finds correct resources given multiple resources with desired key-value pair - nested",
+			ri:   resourceIdentifier{gvr: resource1.gvr, status: map[string]interface{}{"status": map[string]interface{}{"tomato": "potato"}}},
+			want: []map[string]interface{}{response2.Object},
+			skip: false,
+		},
+		{
+			name: "sad - finds resources given status",
+			ri:   resourceIdentifier{gvr: resource1.gvr, status: map[string]interface{}{"status": map[string]interface{}{"baz": "fail"}}},
+			want: []map[string]interface{}{response3.Object},
+			skip: false,
 		},
 	}
 
 	for _, tc := range listTests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, _ := ListResources(client, tc.ri)
-			if tc.wantResponseLength != len(got) {
-				t.Errorf("Expected %d items but got %d", tc.wantResponseLength, len(got))
+			if tc.skip {
+				t.Skip()
 			}
-			for _, wantItem := range tc.wantResponse {
+			got, _ := ListResources(client, tc.ri)
+			if len(tc.want) != len(got) {
+				t.Errorf("Expected %d items but got %d", len(tc.want), len(got))
+			}
+			for _, wantItem := range tc.want {
 				if !equalityCheck(wantItem, got) {
-					t.Errorf("did not find %s in %v\n", wantItem, got)
+					t.Errorf("did not find\n%s\nin\n%v\n", wantItem, got)
 				}
 			}
 		})
