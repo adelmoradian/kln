@@ -1,4 +1,4 @@
-package list
+package internal
 
 import (
 	"context"
@@ -36,6 +36,9 @@ func ListResources(client dynamic.Interface, resourceFilter resourceIdentifier) 
 	responseList = filterByStatus(responseList, resourceFilter.status)
 	return responseList, err
 }
+
+// func FlagResources(client dynamic.Interface) {
+// }
 
 func filterByAge(responseFromServer *unstructured.UnstructuredList, minAgeFilter float64) ([]unstructured.Unstructured, error) {
 	var responseList []unstructured.Unstructured

@@ -1,4 +1,4 @@
-package list
+package internal
 
 import (
 	"context"
@@ -96,9 +96,9 @@ func TestListResources(t *testing.T) {
 	manifest1 := newUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
 	manifest2 := newUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
 	manifest3 := newUnstructured(t, resource3, time.Now().Add(-70*time.Minute).Format(RFC3339))
-	response1 := ApplyResource(t, client, resource1, manifest1)
-	response2 := ApplyResource(t, client, resource2, manifest2)
-	response3 := ApplyResource(t, client, resource3, manifest3)
+	response1 := applyResource(t, client, resource1, manifest1)
+	response2 := applyResource(t, client, resource2, manifest2)
+	response3 := applyResource(t, client, resource3, manifest3)
 
 	listTests := []listTestCases{
 		{
@@ -191,13 +191,22 @@ func TestListResources(t *testing.T) {
 				t.Errorf("Expected %d items but got %d", len(tc.want), len(got))
 			}
 			for _, wantItem := range tc.want {
-				if !equalityCheck(wantItem, got) {
+				if !EqualityCheck(wantItem, got) {
 					t.Errorf("did not find\n%s\nin\n%v\n", wantItem, got)
 				}
 			}
 		})
 	}
 }
+
+// func TestLabelResources(t *testing.T) {
+// 	client := setupFakeDynamicClient(t, resource1)
+// 	manifest1 := newUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
+// 	manifest2 := newUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
+// 	response1 := applyResource(t, client, resource1, manifest1)
+// 	response2 := applyResource(t, client, resource2, manifest2)
+
+// }
 
 func setupFakeDynamicClient(t *testing.T, riList ...resourceIdentifier) *dynamicfake.FakeDynamicClient {
 	t.Helper()
@@ -209,7 +218,7 @@ func setupFakeDynamicClient(t *testing.T, riList ...resourceIdentifier) *dynamic
 	return client
 }
 
-func ApplyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri resourceIdentifier, rm *unstructured.Unstructured) *unstructured.Unstructured {
+func applyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri resourceIdentifier, rm *unstructured.Unstructured) *unstructured.Unstructured {
 	t.Helper()
 	ns := ri.metadata["namespace"].(string)
 	response, err := client.Resource(ri.gvr).Namespace(ns).Create(context.TODO(), rm, v1.CreateOptions{})
@@ -237,7 +246,7 @@ func newUnstructured(t *testing.T, ri resourceIdentifier, creationTimestamp stri
 	}
 }
 
-func equalityCheck(wantItem map[string]interface{}, got []unstructured.Unstructured) bool {
+func EqualityCheck(wantItem map[string]interface{}, got []unstructured.Unstructured) bool {
 	for _, gotItem := range got {
 		if equality.Semantic.DeepEqual(gotItem.Object, wantItem) {
 			return true
