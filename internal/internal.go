@@ -25,16 +25,16 @@ type resourceIdentifier struct {
 	status     map[string]interface{}
 }
 
-func ListResources(client dynamic.Interface, resourceFilter resourceIdentifier) ([]unstructured.Unstructured, error) {
+func (ri *resourceIdentifier) ListResources(client dynamic.Interface) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
-	responseFromServer, err := client.Resource(resourceFilter.gvr).List(context.TODO(), v1.ListOptions{})
+	responseFromServer, err := client.Resource(ri.gvr).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
-		return responseList, err
+		return responseList
 	}
-	responseList, err = filterByAge(responseFromServer, resourceFilter.age)
-	responseList = filterByMetadata(responseList, resourceFilter.metadata)
-	responseList = filterByStatus(responseList, resourceFilter.status)
-	return responseList, err
+	responseList, err = filterByAge(responseFromServer, ri.age)
+	responseList = filterByMetadata(responseList, ri.metadata)
+	responseList = filterByStatus(responseList, ri.status)
+	return responseList
 }
 
 // func FlagResources(client dynamic.Interface) {

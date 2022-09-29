@@ -186,13 +186,14 @@ func TestListResources(t *testing.T) {
 			if tc.skip {
 				t.Skip()
 			}
-			got, _ := ListResources(client, tc.ri)
+			// got, _ := ListResources(client, tc.ri)
+			got := tc.ri.ListResources(client)
 			if len(tc.want) != len(got) {
 				t.Errorf("Expected %d items but got %d", len(tc.want), len(got))
 			}
 			for _, wantItem := range tc.want {
 				if !EqualityCheck(wantItem, got) {
-					t.Errorf("did not find\n%s\nin\n%v\n", wantItem, got)
+					t.Errorf("want --->\n%s\nbut did not find it in --->\n%v\n", wantItem, got)
 				}
 			}
 		})
