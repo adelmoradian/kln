@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
@@ -89,6 +90,83 @@ type listTestCases struct {
 	ri   resourceIdentifier
 	want []map[string]interface{}
 	skip bool
+}
+
+func TestFlagForDeletion(t *testing.T) {
+	client := setupFakeDynamicClient(t, resource1)
+	manifest2 := newUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
+	_ = applyResource(t, client, resource2, manifest2)
+	ri := resourceIdentifier{gvr: resource2.gvr, age: 0.5}
+	ns := resource2.metadata["namespace"].(string)
+	name := resource2.metadata["name"].(string)
+	t.Run("resource has no existing annotation", func(t *testing.T) {
+		err := ri.FlagForDeletion(client)
+		if err != nil {
+			t.Error(err)
+		}
+		item, err := client.Resource(ri.gvr).Namespace(ns).Get(context.TODO(), name, v1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		annotations := item.GetAnnotations()
+		if annotations == nil {
+			t.Errorf("got no annotations")
+		}
+		if _, ok := annotations["kln.com/delete"]; !ok {
+			t.Errorf("%s does not contain the kln.com/delete key", annotations)
+		}
+		if value, _ := annotations["kln.com/delete"]; value != "true" {
+			t.Errorf("got %s, want %s", value, "true")
+		}
+	})
+	t.Run("delete flag is initially false", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"false"}}}`)
+		_, _ = client.Resource(ri.gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		err := ri.FlagForDeletion(client)
+		if err != nil {
+			t.Error(err)
+		}
+		item, err := client.Resource(ri.gvr).Namespace(ns).Get(context.TODO(), name, v1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		annotations := item.GetAnnotations()
+		if annotations == nil {
+			t.Errorf("got no annotations")
+		}
+		if _, ok := annotations["kln.com/delete"]; !ok {
+			t.Errorf("%s does not contain the kln.com/delete key", annotations)
+		}
+		if value, _ := annotations["kln.com/delete"]; value != "true" {
+			t.Errorf("got %s, want %s", value, "true")
+		}
+	})
+	t.Run("resource has some annotation", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"annotations":{"foo":"bar"}}}`)
+		_, _ = client.Resource(ri.gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		err := ri.FlagForDeletion(client)
+		if err != nil {
+			t.Error(err)
+		}
+		item, err := client.Resource(ri.gvr).Namespace(ns).Get(context.TODO(), name, v1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		annotations := item.GetAnnotations()
+		if annotations == nil {
+			t.Errorf("got no annotations")
+		}
+		if _, ok := annotations["kln.com/delete"]; !ok {
+			t.Errorf("%s does not contain the kln.com/delete key", annotations)
+		}
+		if _, ok := annotations["foo"]; !ok {
+			t.Error("original annotation was lost")
+		}
+		if value, _ := annotations["kln.com/delete"]; value != "true" {
+			t.Errorf("got %s, want %s", value, "true")
+		}
+	})
+
 }
 
 func TestListResources(t *testing.T) {
@@ -186,8 +264,7 @@ func TestListResources(t *testing.T) {
 			if tc.skip {
 				t.Skip()
 			}
-			// got, _ := ListResources(client, tc.ri)
-			got := tc.ri.ListResources(client)
+			got := ListResources(client, tc.ri)
 			if len(tc.want) != len(got) {
 				t.Errorf("Expected %d items but got %d", len(tc.want), len(got))
 			}
@@ -199,16 +276,6 @@ func TestListResources(t *testing.T) {
 		})
 	}
 }
-
-// func TestLabelResources(t *testing.T) {
-// 	client := setupFakeDynamicClient(t, resource1)
-// 	manifest1 := newUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
-// 	manifest2 := newUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
-// 	response1 := applyResource(t, client, resource1, manifest1)
-// 	response2 := applyResource(t, client, resource2, manifest2)
-
-// }
-
 func setupFakeDynamicClient(t *testing.T, riList ...resourceIdentifier) *dynamicfake.FakeDynamicClient {
 	t.Helper()
 	scheme := runtime.NewScheme()

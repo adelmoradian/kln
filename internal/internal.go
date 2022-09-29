@@ -2,12 +2,14 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -25,7 +27,25 @@ type resourceIdentifier struct {
 	status     map[string]interface{}
 }
 
-func (ri *resourceIdentifier) ListResources(client dynamic.Interface) []unstructured.Unstructured {
+func (ri *resourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
+	resources := ListResources(client, *ri)
+	if len(resources) == 0 {
+		return errors.New(fmt.Sprintf("did not find any resources that match the criteria:\n%v", ri))
+	}
+
+	for _, resource := range resources {
+		ns := resource.Object["metadata"].(map[string]interface{})["namespace"].(string)
+		name := resource.Object["metadata"].(map[string]interface{})["name"].(string)
+		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
+		_, err := client.Resource(ri.gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ListResources(client dynamic.Interface, ri resourceIdentifier) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
 	responseFromServer, err := client.Resource(ri.gvr).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
@@ -36,9 +56,6 @@ func (ri *resourceIdentifier) ListResources(client dynamic.Interface) []unstruct
 	responseList = filterByStatus(responseList, ri.status)
 	return responseList
 }
-
-// func FlagResources(client dynamic.Interface) {
-// }
 
 func filterByAge(responseFromServer *unstructured.UnstructuredList, minAgeFilter float64) ([]unstructured.Unstructured, error) {
 	var responseList []unstructured.Unstructured
