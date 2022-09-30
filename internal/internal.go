@@ -108,10 +108,43 @@ func mapIntersectionCheck(mapA, mapB map[string]interface{}) bool {
 			if typeof(vA) == "map[string]interface {}" {
 				return mapIntersectionCheck(vA.(map[string]interface{}), vB.(map[string]interface{}))
 			}
+			if typeof(vA) == "[]interface {}" {
+				return arrayIntersectionCheck(vA.([]interface{}), vB.([]interface{}))
+			}
 			if vA != vB {
 				return false
 			}
 		} else {
+			return false
+		}
+	}
+	return true
+}
+
+func arrayIntersectionCheck(sliceSmall, sliceBig []interface{}) bool {
+	if len(sliceSmall) > len(sliceBig) {
+		return false
+	}
+	for _, vSmall := range sliceSmall {
+		if !contains(sliceBig, vSmall) {
+			return false
+		}
+	}
+	return true
+}
+
+func contains(sliceBig []interface{}, vSmall interface{}) bool {
+	for _, vBig := range sliceBig {
+		if typeof(vBig) != typeof(vSmall) {
+			return false
+		}
+		if typeof(vBig) == "map[string]interface {}" {
+			return mapIntersectionCheck(vSmall.(map[string]interface{}), vBig.(map[string]interface{}))
+		}
+		if typeof(vBig) == "[]interface {}" {
+			return arrayIntersectionCheck(vSmall.([]interface{}), vBig.([]interface{}))
+		}
+		if vSmall != vBig {
 			return false
 		}
 	}
