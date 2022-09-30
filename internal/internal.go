@@ -17,17 +17,17 @@ const (
 	RFC3339 = "2006-01-02T15:04:05Z07:00"
 )
 
-type resourceIdentifier struct {
-	gvr        schema.GroupVersionResource
-	age        float64
-	apiVersion string
-	kind       string
-	metadata   map[string]interface{}
-	spec       map[string]interface{}
-	status     map[string]interface{}
+type ResourceIdentifier struct {
+	Gvr        schema.GroupVersionResource `yaml:"gvr"`
+	MinAge     float64                     `yaml:"minAge"`
+	ApiVersion string                      `yaml:"apiVersion"`
+	Kind       string                      `yaml:"kind"`
+	Metadata   map[string]interface{}      `yaml:"metadata"`
+	Spec       map[string]interface{}      `yaml:"spec"`
+	Status     map[string]interface{}      `yaml:"status"`
 }
 
-func (ri *resourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
+func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
 	resources := ListResources(client, *ri)
 	if len(resources) == 0 {
 		return errors.New(fmt.Sprintf("did not find any resources that match the criteria:\n%v", ri))
@@ -37,7 +37,7 @@ func (ri *resourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
 		ns := resource.Object["metadata"].(map[string]interface{})["namespace"].(string)
 		name := resource.Object["metadata"].(map[string]interface{})["name"].(string)
 		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
-		_, err := client.Resource(ri.gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		_, err := client.Resource(ri.Gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		if err != nil {
 			return err
 		}
@@ -45,15 +45,15 @@ func (ri *resourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
 	return nil
 }
 
-func ListResources(client dynamic.Interface, ri resourceIdentifier) []unstructured.Unstructured {
+func ListResources(client dynamic.Interface, ri ResourceIdentifier) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
-	responseFromServer, err := client.Resource(ri.gvr).List(context.TODO(), v1.ListOptions{})
+	responseFromServer, err := client.Resource(ri.Gvr).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return responseList
 	}
-	responseList, err = filterByAge(responseFromServer, ri.age)
-	responseList = filterByMetadata(responseList, ri.metadata)
-	responseList = filterByStatus(responseList, ri.status)
+	responseList, err = filterByAge(responseFromServer, ri.MinAge)
+	responseList = filterByMetadata(responseList, ri.Metadata)
+	responseList = filterByStatus(responseList, ri.Status)
 	return responseList
 }
 
@@ -66,11 +66,7 @@ func filterByAge(responseFromServer *unstructured.UnstructuredList, minAgeFilter
 		return responseList, nil
 	}
 	for _, item := range responseFromServer.Items {
-		creationTimestamp, err := time.Parse(RFC3339, item.Object["metadata"].(map[string]interface{})["creationTimestamp"].(string))
-		if err != nil {
-			return nil, err
-		}
-		age := time.Since(creationTimestamp)
+		age := time.Since(item.GetCreationTimestamp().Time)
 		if age.Hours() > minAgeFilter {
 			responseList = append(responseList, item)
 		}
