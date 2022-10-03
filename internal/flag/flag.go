@@ -20,13 +20,15 @@ const (
 )
 
 type ResourceIdentifier struct {
-	GVR        schema.GroupVersionResource `yaml:"gvr"`
-	MinAge     float64                     `yaml:"minAge"`
-	ApiVersion string                      `yaml:"apiVersion"`
-	Kind       string                      `yaml:"kind"`
-	Metadata   map[string]interface{}      `yaml:"metadata"`
-	Spec       map[string]interface{}      `yaml:"spec"`
-	Status     map[string]interface{}      `yaml:"status"`
+	GVR         schema.GroupVersionResource `yaml:"gvr"`
+	MinAge      float64                     `yaml:"minAge"`
+	ApiVersion  string                      `yaml:"apiVersion"`
+	Kind        string                      `yaml:"kind"`
+	Metadata    map[string]interface{}      `yaml:"metadata"`
+	Spec        map[string]interface{}      `yaml:"spec"`
+	Status      map[string]interface{}      `yaml:"status"`
+	Name        string                      `yaml:"name"`
+	Description string                      `yaml:"description"`
 }
 
 func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
@@ -96,8 +98,8 @@ func filterByStatus(responseFromServer []unstructured.Unstructured, statusFilter
 		return responseFromServer
 	}
 	for _, item := range responseFromServer {
-		objectMeta := item.Object["status"].(map[string]interface{})
-		if utility.MapIntersection(statusFilter, objectMeta) {
+		objectStatus := item.Object["status"].(map[string]interface{})
+		if utility.MapIntersection(statusFilter, objectStatus) {
 			responseList = append(responseList, item)
 		}
 	}
