@@ -34,8 +34,8 @@ func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
 	}
 
 	for _, resource := range resources {
-		ns := resource.Object["metadata"].(map[string]interface{})["namespace"].(string)
-		name := resource.Object["metadata"].(map[string]interface{})["name"].(string)
+		ns := resource.GetNamespace()
+		name := resource.GetName()
 		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
 		_, err := client.Resource(ri.Gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		if err != nil {
