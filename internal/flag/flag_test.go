@@ -1,4 +1,4 @@
-package internal
+package flag
 
 import (
 	"context"
@@ -47,7 +47,7 @@ var (
 	}
 
 	resourceFake = ResourceIdentifier{
-		Gvr: schema.GroupVersionResource{
+		GVR: schema.GroupVersionResource{
 			Group:    "fake",
 			Version:  "fakeVersion",
 			Resource: "fakes",
@@ -65,31 +65,31 @@ type listTestCases struct {
 }
 
 func TestFlagForDeletion(t *testing.T) {
-	resource2 := createResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name2"}, status2)
-	client := setupFakeDynamicClient(t, resource2)
-	manifest2 := newUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
-	applyResource(t, client, resource2, manifest2)
-	ri := ResourceIdentifier{Gvr: resource2.Gvr, MinAge: 0.5}
+	resource2 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name2"}, status2)
+	client := SetupFakeDynamicClient(t, resource2)
+	manifest2 := NewUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
+	ApplyResource(t, client, resource2, manifest2)
+	ri := ResourceIdentifier{GVR: resource2.GVR, MinAge: 0.5}
 	ns := resource2.Metadata["namespace"].(string)
 	name := resource2.Metadata["name"].(string)
 
 	t.Run("happy - resource has no existing annotation", func(t *testing.T) {
 		err := ri.FlagForDeletion(client)
-		flagAssertion(t, client, ri.Gvr, name, ns, err)
+		flagAssertion(t, client, ri.GVR, name, ns, err)
 	})
 
 	t.Run("happy - kln.com/delete annotation is initially false", func(t *testing.T) {
 		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"false"}}}`)
-		client.Resource(ri.Gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		err := ri.FlagForDeletion(client)
-		flagAssertion(t, client, ri.Gvr, name, ns, err)
+		flagAssertion(t, client, ri.GVR, name, ns, err)
 	})
 
 	t.Run("happy - resource has some annotation", func(t *testing.T) {
 		patch := []byte(`{"metadata":{"annotations":{"foo":"bar"}}}`)
-		client.Resource(ri.Gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		err := ri.FlagForDeletion(client)
-		annotations := flagAssertion(t, client, ri.Gvr, name, ns, err)
+		annotations := flagAssertion(t, client, ri.GVR, name, ns, err)
 		if _, ok := annotations["foo"]; !ok {
 			t.Error("original annotation was lost")
 		}
@@ -97,105 +97,105 @@ func TestFlagForDeletion(t *testing.T) {
 }
 
 func TestListResources(t *testing.T) {
-	resource1 := createResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name1"}, status1)
-	resource2 := createResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name2"}, status2)
-	resource3 := createResource(customGVR, map[string]interface{}{"namespace": "ns3", "name": "name3"}, status3)
-	client := setupFakeDynamicClient(t, resource1, resourceFake)
-	manifest1 := newUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
-	manifest2 := newUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
-	manifest3 := newUnstructured(t, resource3, time.Now().Add(-70*time.Minute).Format(RFC3339))
-	response1 := applyResource(t, client, resource1, manifest1)
-	response2 := applyResource(t, client, resource2, manifest2)
-	response3 := applyResource(t, client, resource3, manifest3)
+	resource1 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name1"}, status1)
+	resource2 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name2"}, status2)
+	resource3 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns3", "name": "name3"}, status3)
+	client := SetupFakeDynamicClient(t, resource1, resourceFake)
+	manifest1 := NewUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
+	manifest2 := NewUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
+	manifest3 := NewUnstructured(t, resource3, time.Now().Add(-70*time.Minute).Format(RFC3339))
+	response1 := ApplyResource(t, client, resource1, manifest1)
+	response2 := ApplyResource(t, client, resource2, manifest2)
+	response3 := ApplyResource(t, client, resource3, manifest3)
 
 	listTests := []listTestCases{
 		{
 			name: "happy - finds resources given only gvr",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr},
+			ri:   ResourceIdentifier{GVR: resource1.GVR},
 			want: []map[string]interface{}{response1.Object, response2.Object, response3.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given only gvr",
-			ri:   ResourceIdentifier{Gvr: fakeGVR},
+			ri:   ResourceIdentifier{GVR: fakeGVR},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given minAge",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, MinAge: 0.5},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, MinAge: 0.5},
 			want: []map[string]interface{}{response2.Object, response3.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given minAge",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, MinAge: 1.5},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, MinAge: 1.5},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given metadata",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Metadata: map[string]interface{}{"namespace": "ns"}},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns"}},
 			want: []map[string]interface{}{response1.Object, response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given metadata",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Metadata: map[string]interface{}{"namespace": "ns", "name": "fake"}},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns", "name": "fake"}},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given minAge and metadata",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Metadata: map[string]interface{}{"namespace": "ns"}, MinAge: 0.5},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns"}, MinAge: 0.5},
 			want: []map[string]interface{}{response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given minAge and metadata",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Metadata: map[string]interface{}{"name": "fake"}, MinAge: 0.5},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"name": "fake"}, MinAge: 0.5},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given status",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Status: map[string]interface{}{"foo": "bar"}},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"foo": "bar"}},
 			want: []map[string]interface{}{response1.Object, response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given nested status",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Status: map[string]interface{}{"status": map[string]interface{}{"baz": map[string]interface{}{"deep": "nest"}}}},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"baz": map[string]interface{}{"deep": "nest"}}}},
 			want: []map[string]interface{}{response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds correct resources given multiple resources with desired key-value pair",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Status: map[string]interface{}{"tomato": "potato"}},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"tomato": "potato"}},
 			want: []map[string]interface{}{response1.Object},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds correct resources given multiple resources with desired key-value pair - nested",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Status: map[string]interface{}{"status": map[string]interface{}{"tomato": "potato"}}},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"tomato": "potato"}}},
 			want: []map[string]interface{}{response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given status",
-			ri:   ResourceIdentifier{Gvr: resource1.Gvr, Status: map[string]interface{}{"status": map[string]interface{}{"baz": "fail"}}},
+			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"baz": "fail"}}},
 			want: []map[string]interface{}{response3.Object},
 			skip: false,
 		},
@@ -219,9 +219,9 @@ func TestListResources(t *testing.T) {
 	}
 }
 
-func createResource(gvr schema.GroupVersionResource, meta map[string]interface{}, status map[string]interface{}) ResourceIdentifier {
+func CreateResource(gvr schema.GroupVersionResource, meta map[string]interface{}, status map[string]interface{}) ResourceIdentifier {
 	ri := ResourceIdentifier{
-		Gvr:        gvr,
+		GVR:        gvr,
 		ApiVersion: "agroup/aversion",
 		Kind:       "AKind",
 		Metadata:   meta,
@@ -230,27 +230,27 @@ func createResource(gvr schema.GroupVersionResource, meta map[string]interface{}
 	return ri
 }
 
-func setupFakeDynamicClient(t *testing.T, riList ...ResourceIdentifier) *dynamicfake.FakeDynamicClient {
+func SetupFakeDynamicClient(t *testing.T, riList ...ResourceIdentifier) *dynamicfake.FakeDynamicClient {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	for _, ri := range riList {
-		scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: ri.Gvr.Group, Version: ri.Gvr.Version, Kind: ri.Kind + "List"}, &unstructured.Unstructured{})
+		scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: ri.GVR.Group, Version: ri.GVR.Version, Kind: ri.Kind + "List"}, &unstructured.Unstructured{})
 	}
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
 	return client
 }
 
-func applyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri ResourceIdentifier, rm *unstructured.Unstructured) *unstructured.Unstructured {
+func ApplyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri ResourceIdentifier, rm *unstructured.Unstructured) *unstructured.Unstructured {
 	t.Helper()
 	ns := ri.Metadata["namespace"].(string)
-	response, err := client.Resource(ri.Gvr).Namespace(ns).Create(context.TODO(), rm, v1.CreateOptions{})
+	response, err := client.Resource(ri.GVR).Namespace(ns).Create(context.TODO(), rm, v1.CreateOptions{})
 	if err != nil {
 		t.Error(err)
 	}
 	return response
 }
 
-func newUnstructured(t *testing.T, ri ResourceIdentifier, creationTimestamp string) *unstructured.Unstructured {
+func NewUnstructured(t *testing.T, ri ResourceIdentifier, creationTimestamp string) *unstructured.Unstructured {
 	t.Helper()
 	ns := ri.Metadata["namespace"].(string)
 	name := ri.Metadata["name"].(string)

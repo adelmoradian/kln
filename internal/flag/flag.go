@@ -1,10 +1,12 @@
-package internal
+package flag
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"time"
+
+	utility "github.com/adelmoradian/kln/internal/utility"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,7 +20,7 @@ const (
 )
 
 type ResourceIdentifier struct {
-	Gvr        schema.GroupVersionResource `yaml:"gvr"`
+	GVR        schema.GroupVersionResource `yaml:"gvr"`
 	MinAge     float64                     `yaml:"minAge"`
 	ApiVersion string                      `yaml:"apiVersion"`
 	Kind       string                      `yaml:"kind"`
@@ -37,7 +39,7 @@ func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
 		ns := resource.GetNamespace()
 		name := resource.GetName()
 		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
-		_, err := client.Resource(ri.Gvr).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		_, err := client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		if err != nil {
 			return err
 		}
@@ -47,7 +49,7 @@ func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
 
 func ListResources(client dynamic.Interface, ri ResourceIdentifier) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
-	responseFromServer, err := client.Resource(ri.Gvr).List(context.TODO(), v1.ListOptions{})
+	responseFromServer, err := client.Resource(ri.GVR).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return responseList
 	}
@@ -81,7 +83,7 @@ func filterByMetadata(responseFromServer []unstructured.Unstructured, metadataFi
 	}
 	for _, item := range responseFromServer {
 		objectMeta := item.Object["metadata"].(map[string]interface{})
-		if mapIntersectionCheck(metadataFilter, objectMeta) {
+		if utility.MapIntersection(metadataFilter, objectMeta) {
 			responseList = append(responseList, item)
 		}
 	}
@@ -95,62 +97,9 @@ func filterByStatus(responseFromServer []unstructured.Unstructured, statusFilter
 	}
 	for _, item := range responseFromServer {
 		objectMeta := item.Object["status"].(map[string]interface{})
-		if mapIntersectionCheck(statusFilter, objectMeta) {
+		if utility.MapIntersection(statusFilter, objectMeta) {
 			responseList = append(responseList, item)
 		}
 	}
 	return responseList
-}
-
-func mapIntersectionCheck(mapA, mapB map[string]interface{}) bool {
-	for k, vA := range mapA {
-		if vB, ok := mapB[k]; ok && typeof(vA) == typeof(vB) {
-			if typeof(vA) == "map[string]interface {}" {
-				return mapIntersectionCheck(vA.(map[string]interface{}), vB.(map[string]interface{}))
-			}
-			if typeof(vA) == "[]interface {}" {
-				return arrayIntersectionCheck(vA.([]interface{}), vB.([]interface{}))
-			}
-			if vA != vB {
-				return false
-			}
-		} else {
-			return false
-		}
-	}
-	return true
-}
-
-func arrayIntersectionCheck(sliceSmall, sliceBig []interface{}) bool {
-	if len(sliceSmall) > len(sliceBig) {
-		return false
-	}
-	for _, vSmall := range sliceSmall {
-		if !contains(sliceBig, vSmall) {
-			return false
-		}
-	}
-	return true
-}
-
-func contains(sliceBig []interface{}, vSmall interface{}) bool {
-	for _, vBig := range sliceBig {
-		if typeof(vBig) != typeof(vSmall) {
-			return false
-		}
-		if typeof(vBig) == "map[string]interface {}" {
-			return mapIntersectionCheck(vSmall.(map[string]interface{}), vBig.(map[string]interface{}))
-		}
-		if typeof(vBig) == "[]interface {}" {
-			return arrayIntersectionCheck(vSmall.([]interface{}), vBig.([]interface{}))
-		}
-		if vSmall != vBig {
-			return false
-		}
-	}
-	return true
-}
-
-func typeof(v interface{}) string {
-	return fmt.Sprintf("%T", v)
 }
