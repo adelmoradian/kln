@@ -74,22 +74,44 @@ func TestFlagForDeletion(t *testing.T) {
 	name := resource2.Metadata["name"].(string)
 
 	t.Run("happy - resource has no existing annotation", func(t *testing.T) {
-		err := ri.FlagForDeletion(client)
-		flagAssertion(t, client, ri.GVR, name, ns, err)
+		err := ri.FlagForDeletion(client, false)
+		flagAssertion(t, client, ri.GVR, name, ns, "true", err)
 	})
 
 	t.Run("happy - kln.com/delete annotation is initially false", func(t *testing.T) {
 		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"false"}}}`)
 		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := ri.FlagForDeletion(client)
-		flagAssertion(t, client, ri.GVR, name, ns, err)
+		err := ri.FlagForDeletion(client, false)
+		flagAssertion(t, client, ri.GVR, name, ns, "true", err)
 	})
 
 	t.Run("happy - resource has some annotation", func(t *testing.T) {
 		patch := []byte(`{"metadata":{"annotations":{"foo":"bar"}}}`)
 		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := ri.FlagForDeletion(client)
-		annotations := flagAssertion(t, client, ri.GVR, name, ns, err)
+		err := ri.FlagForDeletion(client, false)
+		annotations := flagAssertion(t, client, ri.GVR, name, ns, "true", err)
+		if _, ok := annotations["foo"]; !ok {
+			t.Error("original annotation was lost")
+		}
+	})
+
+	t.Run("undo - resource has no existing annotation", func(t *testing.T) {
+		err := ri.FlagForDeletion(client, true)
+		flagAssertion(t, client, ri.GVR, name, ns, "false", err)
+	})
+
+	t.Run("undo - kln.com/delete annotation is initially true", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
+		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		err := ri.FlagForDeletion(client, true)
+		flagAssertion(t, client, ri.GVR, name, ns, "false", err)
+	})
+
+	t.Run("undo - resource has some annotation", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"annotations":{"foo":"bar"}}}`)
+		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
+		err := ri.FlagForDeletion(client, true)
+		annotations := flagAssertion(t, client, ri.GVR, name, ns, "false", err)
 		if _, ok := annotations["foo"]; !ok {
 			t.Error("original annotation was lost")
 		}
@@ -277,7 +299,7 @@ func equalityCheck(wantItem map[string]interface{}, got []unstructured.Unstructu
 	return false
 }
 
-func flagAssertion(t *testing.T, client *dynamicfake.FakeDynamicClient, gvr schema.GroupVersionResource, name, ns string, err error) map[string]string {
+func flagAssertion(t *testing.T, client *dynamicfake.FakeDynamicClient, gvr schema.GroupVersionResource, name, ns, key string, err error) map[string]string {
 	t.Helper()
 
 	if err != nil {
@@ -294,8 +316,8 @@ func flagAssertion(t *testing.T, client *dynamicfake.FakeDynamicClient, gvr sche
 	if _, ok := annotations["kln.com/delete"]; !ok {
 		t.Errorf("%s does not contain the kln.com/delete key", annotations)
 	}
-	if value, _ := annotations["kln.com/delete"]; value != "true" {
-		t.Errorf("got %s, want %s", value, "true")
+	if value, _ := annotations["kln.com/delete"]; value != key {
+		t.Errorf("got %s, want %s", value, key)
 	}
 	return annotations
 }

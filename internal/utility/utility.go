@@ -1,6 +1,19 @@
 package utility
 
-import "fmt"
+import (
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"path/filepath"
+
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
+)
+
+var InfoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+var WarningLog = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
+var ErrorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
 
 func MapIntersection(mapA, mapB map[string]interface{}) bool {
 	for k, vA := range mapA {
@@ -53,4 +66,25 @@ func Contains(sliceBig []interface{}, vSmall interface{}) bool {
 
 func Typeof(v interface{}) string {
 	return fmt.Sprintf("%T", v)
+}
+
+func GetDynamicClient(kubeconfig string) dynamic.Interface {
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		panic(err)
+	}
+	client, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	return client
+}
+
+func ReadFile(file string) []byte {
+	filename, _ := filepath.Abs(file)
+	config, err := ioutil.ReadFile(filename)
+	if err != nil {
+		panic(err)
+	}
+	return config
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	utility "github.com/adelmoradian/kln/internal/utility"
+	kutility "github.com/adelmoradian/kln/internal/utility"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,16 +31,22 @@ type ResourceIdentifier struct {
 	Description string                      `yaml:"description"`
 }
 
-func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface) error {
+func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface, undoSwitch bool) error {
 	resources := ListResources(client, *ri)
 	if len(resources) == 0 {
 		return errors.New(fmt.Sprintf("did not find any resources that match the criteria:\n%v", ri))
 	}
 
 	for _, resource := range resources {
+		var patch []byte
 		ns := resource.GetNamespace()
 		name := resource.GetName()
-		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
+		if undoSwitch {
+			patch = []byte(`{"metadata":{"annotations":{"kln.com/delete":"false"}}}`)
+		} else {
+			patch = []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
+		}
+		kutility.InfoLog.Printf("Annotating %s %s in %s ns - dryRun %v", name, resource.GetKind(), ns, undoSwitch)
 		_, err := client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		if err != nil {
 			return err
@@ -85,7 +91,7 @@ func filterByMetadata(responseFromServer []unstructured.Unstructured, metadataFi
 	}
 	for _, item := range responseFromServer {
 		objectMeta := item.Object["metadata"].(map[string]interface{})
-		if utility.MapIntersection(metadataFilter, objectMeta) {
+		if kutility.MapIntersection(metadataFilter, objectMeta) {
 			responseList = append(responseList, item)
 		}
 	}
@@ -99,7 +105,7 @@ func filterByStatus(responseFromServer []unstructured.Unstructured, statusFilter
 	}
 	for _, item := range responseFromServer {
 		objectStatus := item.Object["status"].(map[string]interface{})
-		if utility.MapIntersection(statusFilter, objectStatus) {
+		if kutility.MapIntersection(statusFilter, objectStatus) {
 			responseList = append(responseList, item)
 		}
 	}
