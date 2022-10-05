@@ -13,6 +13,7 @@ import (
 )
 
 var kubeconfig string
+var file string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -43,6 +44,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	rootCmd.PersistentFlags().StringVarP(&kubeconfig, "kube-config", "k", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) abs path to the kubeconfig file")
+	rootCmd.PersistentFlags().StringVarP(&file, "file", "f", "./kln.yaml", "Relative path to yaml file containing the resource identifiers")
 
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kln.yaml)")
 

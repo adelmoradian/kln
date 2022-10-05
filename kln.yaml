@@ -5,7 +5,9 @@ items:
       group: batch
       version: v1
       resource: jobs
-    minAge: 72
+    minAge: 400
+    metadata:
+      name: rubycritic-weekly-rebuild-27724440
     status:
       conditions:
         - status: "True"
@@ -16,7 +18,9 @@ items:
       group: tekton.dev
       version: v1beta1
       resource: pipelineruns
-    minAge: 24
+    minAge: 780
+    metadata:
+      name: rubycritic-cron-z7p92
     status:
       conditions:
         - reason: PipelineValidationFailed

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	kutility "github.com/adelmoradian/kln/internal/utility"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,7 +48,7 @@ var (
 		},
 	}
 
-	resourceFake = ResourceIdentifier{
+	resourceFake = kutility.ResourceIdentifier{
 		GVR: schema.GroupVersionResource{
 			Group:    "fake",
 			Version:  "fakeVersion",
@@ -59,7 +61,7 @@ var (
 
 type listTestCases struct {
 	name string
-	ri   ResourceIdentifier
+	ri   kutility.ResourceIdentifier
 	want []map[string]interface{}
 	skip bool
 }
@@ -67,53 +69,53 @@ type listTestCases struct {
 func TestFlagForDeletion(t *testing.T) {
 	resource2 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name2"}, status2)
 	client := SetupFakeDynamicClient(t, resource2)
-	manifest2 := NewUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
+	manifest2 := NewUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(kutility.RFC3339))
 	ApplyResource(t, client, resource2, manifest2)
-	ri := ResourceIdentifier{GVR: resource2.GVR, MinAge: 0.5}
+	ri := kutility.ResourceIdentifier{GVR: resource2.GVR, MinAge: 0.5}
 	ns := resource2.Metadata["namespace"].(string)
 	name := resource2.Metadata["name"].(string)
 
-	t.Run("happy - resource has no existing annotation", func(t *testing.T) {
-		err := ri.FlagForDeletion(client, false)
+	t.Run("happy - resource has no existing label", func(t *testing.T) {
+		err := FlagForDeletion(client, ri, false)
 		flagAssertion(t, client, ri.GVR, name, ns, "true", err)
 	})
 
-	t.Run("happy - kln.com/delete annotation is initially false", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"false"}}}`)
+	t.Run("happy - kln.com/delete label is initially false", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"labels":{"kln.com/delete":"false"}}}`)
 		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := ri.FlagForDeletion(client, false)
+		err := FlagForDeletion(client, ri, false)
 		flagAssertion(t, client, ri.GVR, name, ns, "true", err)
 	})
 
-	t.Run("happy - resource has some annotation", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"annotations":{"foo":"bar"}}}`)
+	t.Run("happy - resource has some label", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"labels":{"foo":"bar"}}}`)
 		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := ri.FlagForDeletion(client, false)
-		annotations := flagAssertion(t, client, ri.GVR, name, ns, "true", err)
-		if _, ok := annotations["foo"]; !ok {
-			t.Error("original annotation was lost")
+		err := FlagForDeletion(client, ri, false)
+		labels := flagAssertion(t, client, ri.GVR, name, ns, "true", err)
+		if _, ok := labels["foo"]; !ok {
+			t.Error("original label was lost")
 		}
 	})
 
-	t.Run("undo - resource has no existing annotation", func(t *testing.T) {
-		err := ri.FlagForDeletion(client, true)
+	t.Run("undo - resource has no existing label", func(t *testing.T) {
+		err := FlagForDeletion(client, ri, true)
 		flagAssertion(t, client, ri.GVR, name, ns, "false", err)
 	})
 
-	t.Run("undo - kln.com/delete annotation is initially true", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
+	t.Run("undo - kln.com/delete label is initially true", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
 		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := ri.FlagForDeletion(client, true)
+		err := FlagForDeletion(client, ri, true)
 		flagAssertion(t, client, ri.GVR, name, ns, "false", err)
 	})
 
-	t.Run("undo - resource has some annotation", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"annotations":{"foo":"bar"}}}`)
+	t.Run("undo - resource has some labels", func(t *testing.T) {
+		patch := []byte(`{"metadata":{"labels":{"foo":"bar"}}}`)
 		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := ri.FlagForDeletion(client, true)
-		annotations := flagAssertion(t, client, ri.GVR, name, ns, "false", err)
-		if _, ok := annotations["foo"]; !ok {
-			t.Error("original annotation was lost")
+		err := FlagForDeletion(client, ri, true)
+		labels := flagAssertion(t, client, ri.GVR, name, ns, "false", err)
+		if _, ok := labels["foo"]; !ok {
+			t.Error("original label was lost")
 		}
 	})
 }
@@ -123,9 +125,9 @@ func TestListResources(t *testing.T) {
 	resource2 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name2"}, status2)
 	resource3 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns3", "name": "name3"}, status3)
 	client := SetupFakeDynamicClient(t, resource1, resourceFake)
-	manifest1 := NewUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
-	manifest2 := NewUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
-	manifest3 := NewUnstructured(t, resource3, time.Now().Add(-70*time.Minute).Format(RFC3339))
+	manifest1 := NewUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(kutility.RFC3339))
+	manifest2 := NewUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(kutility.RFC3339))
+	manifest3 := NewUnstructured(t, resource3, time.Now().Add(-70*time.Minute).Format(kutility.RFC3339))
 	response1 := ApplyResource(t, client, resource1, manifest1)
 	response2 := ApplyResource(t, client, resource2, manifest2)
 	response3 := ApplyResource(t, client, resource3, manifest3)
@@ -133,91 +135,91 @@ func TestListResources(t *testing.T) {
 	listTests := []listTestCases{
 		{
 			name: "happy - finds resources given only gvr",
-			ri:   ResourceIdentifier{GVR: resource1.GVR},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR},
 			want: []map[string]interface{}{response1.Object, response2.Object, response3.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given only gvr",
-			ri:   ResourceIdentifier{GVR: fakeGVR},
+			ri:   kutility.ResourceIdentifier{GVR: fakeGVR},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given minAge",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, MinAge: 0.5},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, MinAge: 0.5},
 			want: []map[string]interface{}{response2.Object, response3.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given minAge",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, MinAge: 1.5},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, MinAge: 1.5},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given metadata",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns"}},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns"}},
 			want: []map[string]interface{}{response1.Object, response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given metadata",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns", "name": "fake"}},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns", "name": "fake"}},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given minAge and metadata",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns"}, MinAge: 0.5},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"namespace": "ns"}, MinAge: 0.5},
 			want: []map[string]interface{}{response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given minAge and metadata",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"name": "fake"}, MinAge: 0.5},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Metadata: map[string]interface{}{"name": "fake"}, MinAge: 0.5},
 			want: []map[string]interface{}{},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given status",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"foo": "bar"}},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"foo": "bar"}},
 			want: []map[string]interface{}{response1.Object, response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds resources given nested status",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"baz": map[string]interface{}{"deep": "nest"}}}},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"baz": map[string]interface{}{"deep": "nest"}}}},
 			want: []map[string]interface{}{response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds correct resources given multiple resources with desired key-value pair",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"tomato": "potato"}},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"tomato": "potato"}},
 			want: []map[string]interface{}{response1.Object},
 			skip: false,
 		},
 
 		{
 			name: "happy - finds correct resources given multiple resources with desired key-value pair - nested",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"tomato": "potato"}}},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"tomato": "potato"}}},
 			want: []map[string]interface{}{response2.Object},
 			skip: false,
 		},
 
 		{
 			name: "sad - finds resources given status",
-			ri:   ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"baz": "fail"}}},
+			ri:   kutility.ResourceIdentifier{GVR: resource1.GVR, Status: map[string]interface{}{"status": map[string]interface{}{"baz": "fail"}}},
 			want: []map[string]interface{}{response3.Object},
 			skip: false,
 		},
@@ -241,8 +243,8 @@ func TestListResources(t *testing.T) {
 	}
 }
 
-func CreateResource(gvr schema.GroupVersionResource, meta map[string]interface{}, status map[string]interface{}) ResourceIdentifier {
-	ri := ResourceIdentifier{
+func CreateResource(gvr schema.GroupVersionResource, meta map[string]interface{}, status map[string]interface{}) kutility.ResourceIdentifier {
+	ri := kutility.ResourceIdentifier{
 		GVR:        gvr,
 		ApiVersion: "agroup/aversion",
 		Kind:       "AKind",
@@ -252,7 +254,7 @@ func CreateResource(gvr schema.GroupVersionResource, meta map[string]interface{}
 	return ri
 }
 
-func SetupFakeDynamicClient(t *testing.T, riList ...ResourceIdentifier) *dynamicfake.FakeDynamicClient {
+func SetupFakeDynamicClient(t *testing.T, riList ...kutility.ResourceIdentifier) *dynamicfake.FakeDynamicClient {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	for _, ri := range riList {
@@ -262,7 +264,7 @@ func SetupFakeDynamicClient(t *testing.T, riList ...ResourceIdentifier) *dynamic
 	return client
 }
 
-func ApplyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri ResourceIdentifier, rm *unstructured.Unstructured) *unstructured.Unstructured {
+func ApplyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri kutility.ResourceIdentifier, rm *unstructured.Unstructured) *unstructured.Unstructured {
 	t.Helper()
 	ns := ri.Metadata["namespace"].(string)
 	response, err := client.Resource(ri.GVR).Namespace(ns).Create(context.TODO(), rm, v1.CreateOptions{})
@@ -272,7 +274,7 @@ func ApplyResource(t *testing.T, client *dynamicfake.FakeDynamicClient, ri Resou
 	return response
 }
 
-func NewUnstructured(t *testing.T, ri ResourceIdentifier, creationTimestamp string) *unstructured.Unstructured {
+func NewUnstructured(t *testing.T, ri kutility.ResourceIdentifier, creationTimestamp string) *unstructured.Unstructured {
 	t.Helper()
 	ns := ri.Metadata["namespace"].(string)
 	name := ri.Metadata["name"].(string)
@@ -309,15 +311,15 @@ func flagAssertion(t *testing.T, client *dynamicfake.FakeDynamicClient, gvr sche
 	if err != nil {
 		t.Error(err)
 	}
-	annotations := item.GetAnnotations()
-	if annotations == nil {
-		t.Errorf("got no annotations")
+	labels := item.GetLabels()
+	if labels == nil {
+		t.Errorf("got no labels")
 	}
-	if _, ok := annotations["kln.com/delete"]; !ok {
-		t.Errorf("%s does not contain the kln.com/delete key", annotations)
+	if _, ok := labels["kln.com/delete"]; !ok {
+		t.Errorf("%s does not contain the kln.com/delete key", labels)
 	}
-	if value, _ := annotations["kln.com/delete"]; value != key {
+	if value, _ := labels["kln.com/delete"]; value != key {
 		t.Errorf("got %s, want %s", value, key)
 	}
-	return annotations
+	return labels
 }

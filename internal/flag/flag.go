@@ -10,29 +10,12 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 )
 
-const (
-	RFC3339 = "2006-01-02T15:04:05Z07:00"
-)
-
-type ResourceIdentifier struct {
-	GVR         schema.GroupVersionResource `yaml:"gvr"`
-	MinAge      float64                     `yaml:"minAge"`
-	ApiVersion  string                      `yaml:"apiVersion"`
-	Kind        string                      `yaml:"kind"`
-	Metadata    map[string]interface{}      `yaml:"metadata"`
-	Spec        map[string]interface{}      `yaml:"spec"`
-	Status      map[string]interface{}      `yaml:"status"`
-	Name        string                      `yaml:"name"`
-	Description string                      `yaml:"description"`
-}
-
-func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface, undoSwitch bool) error {
-	resources := ListResources(client, *ri)
+func FlagForDeletion(client dynamic.Interface, ri kutility.ResourceIdentifier, undoSwitch bool) error {
+	resources := ListResources(client, ri)
 	if len(resources) == 0 {
 		return errors.New(fmt.Sprintf("did not find any resources that match the criteria:\n%v", ri))
 	}
@@ -42,11 +25,11 @@ func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface, undoSwit
 		ns := resource.GetNamespace()
 		name := resource.GetName()
 		if undoSwitch {
-			patch = []byte(`{"metadata":{"annotations":{"kln.com/delete":"false"}}}`)
+			patch = []byte(`{"metadata":{"labels":{"kln.com/delete":"false"}}}`)
 		} else {
-			patch = []byte(`{"metadata":{"annotations":{"kln.com/delete":"true"}}}`)
+			patch = []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
 		}
-		kutility.InfoLog.Printf("Annotating %s %s in %s ns - dryRun %v", name, resource.GetKind(), ns, undoSwitch)
+		kutility.InfoLog.Printf("Labelling %s %s in %s ns - dryRun %v", name, resource.GetKind(), ns, undoSwitch)
 		_, err := client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		if err != nil {
 			return err
@@ -55,7 +38,7 @@ func (ri *ResourceIdentifier) FlagForDeletion(client dynamic.Interface, undoSwit
 	return nil
 }
 
-func ListResources(client dynamic.Interface, ri ResourceIdentifier) []unstructured.Unstructured {
+func ListResources(client dynamic.Interface, ri kutility.ResourceIdentifier) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
 	responseFromServer, err := client.Resource(ri.GVR).List(context.TODO(), v1.ListOptions{})
 	if err != nil {

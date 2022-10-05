@@ -14,10 +14,9 @@ import (
 )
 
 type RiList struct {
-	Items []kflag.ResourceIdentifier `yaml:"items"`
+	Items []kutility.ResourceIdentifier `yaml:"items"`
 }
 
-var file string
 var riList RiList
 
 // listCmd represents the list command
