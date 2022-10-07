@@ -1,5 +1,7 @@
 # kln
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/adelmoradian/kln)](https://goreportcard.com/report/github.com/adelmoradian/kln)
+
 Status: pre-alpha
 
 Kln is utility that helps to keep your cluster clean by finding and deleting
