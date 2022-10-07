@@ -15,23 +15,27 @@ import (
 var kubeconfig string
 var file string
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "kln",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Keep your cluster clean!",
+	Long: `kln finds, flags and deletes unwanted objects in your kubernetes
+cluster using the user provided resource identifier yaml file`,
+	Example: `# List unwated objects
+kln list
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+# Provide path to resource identifier
+kln list -f ../rltv/path/to/identifier.yaml
+
+# Flag for deletion by patching label "kln.com/delete=true"
+kln flag
+
+# Undo the deletion flag by patching label "kln.com/delete=false"
+kln flag -u
+
+# Delete resources that have "kln.com/delete=true" label
+kln delete`,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -40,15 +44,6 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-	rootCmd.PersistentFlags().StringVarP(&kubeconfig, "kube-config", "k", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) abs path to the kubeconfig file")
-	rootCmd.PersistentFlags().StringVarP(&file, "file", "f", "./kln.yaml", "Relative path to yaml file containing the resource identifiers")
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.kln.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().StringVarP(&kubeconfig, "kube-config", "k", filepath.Join(homedir.HomeDir(), ".kube", "config"), "abs path to the kubeconfig file")
+	rootCmd.PersistentFlags().StringVarP(&file, "file", "f", "./kln.yaml", "relative path to resource identifier yaml file")
 }

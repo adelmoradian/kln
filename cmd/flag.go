@@ -11,10 +11,16 @@ var undoSwitch bool
 
 var flagCmd = &cobra.Command{
 	Use:   "flag",
-	Short: "Flags resources for deletion",
-	Long: `Flags the resources for deletion by adding a "kln/com/delete: true"
-label. By providing the undo flag, you can "undo" the flagging by
-changing the label to false`,
+	Short: "Flags objects for deletion",
+	Long: `Flags objects for deletion by adding a "kln/com/delete: true"
+label. By providing the undo flag, it "undo" the flagging by
+changing the label from true to to false`,
+	Example: `# Flag for deletion by patching label "kln.com/delete=true"
+kln flag
+
+# Undo the deletion flag by patching label "kln.com/delete=false"
+kln flag -u
+`,
 	Run: func(cmd *cobra.Command, args []string) {
 		dynamicClient := kutility.GetDynamicClient(kubeconfig)
 		config := kutility.ReadFile(file)
@@ -33,5 +39,5 @@ changing the label to false`,
 
 func init() {
 	rootCmd.AddCommand(flagCmd)
-	flagCmd.Flags().BoolVarP(&undoSwitch, "undo", "u", false, "When set to true, will label kln/com/delete: false (default: false)")
+	flagCmd.Flags().BoolVarP(&undoSwitch, "undo", "u", false, "When provided, will label kln.com/delete: false")
 }

@@ -40,6 +40,7 @@ func FlagForDeletion(client dynamic.Interface, ri kutility.ResourceIdentifier, u
 
 func ListResources(client dynamic.Interface, ri kutility.ResourceIdentifier) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
+	kutility.InfoLog.Printf("--- GVR: %s, Name: %s, Description: %s\n", ri.GVR, ri.Name, ri.Description)
 	responseFromServer, err := client.Resource(ri.GVR).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return responseList
@@ -47,6 +48,12 @@ func ListResources(client dynamic.Interface, ri kutility.ResourceIdentifier) []u
 	responseList, err = filterByAge(responseFromServer, ri.MinAge)
 	responseList = filterByMetadata(responseList, ri.Metadata)
 	responseList = filterByStatus(responseList, ri.Status)
+	for _, response := range responseList {
+		age := response.GetCreationTimestamp()
+		ns := response.GetNamespace()
+		name := response.GetName()
+		kutility.InfoLog.Printf("Name: %s, Namespace: %s, Age: %s\n", name, ns, time.Since(age.Time))
+	}
 	return responseList
 }
 
