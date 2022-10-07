@@ -20,4 +20,3 @@ items:
     status:
       conditions:
         - reason: PipelineValidationFailed
-          
