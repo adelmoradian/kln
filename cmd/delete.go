@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	kdelete "github.com/adelmoradian/kln/internal/deleteresources"
-	kutility "github.com/adelmoradian/kln/internal/utility"
+	kln "github.com/adelmoradian/kln/pkg"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -29,16 +28,16 @@ It will NOT flag and delete any new objects from the new criteria. Obviously
 the "kln.com/delete" label can be manually changed as well. Currently kln
 does not record anything about the objects which it flags or deletes.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		dynamicClient := kutility.GetDynamicClient(kubeconfig)
-		config := kutility.ReadFile(file)
+		dynamicClient := kln.GetDynamicClient(kubeconfig)
+		config := kln.ReadFile(file)
 		err := yaml.Unmarshal(config, &riList)
 		if err != nil {
 			panic(err)
 		}
 		for _, ri := range riList.Items {
-			err := kdelete.DeleteResources(dynamicClient, ri.GVR)
+			err := kln.DeleteResources(dynamicClient, ri.GVR)
 			if err != nil {
-				kutility.ErrorLog.Println(err)
+				kln.ErrorLog.Println(err)
 			}
 		}
 	},

@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	kflag "github.com/adelmoradian/kln/internal/flag"
-	kutility "github.com/adelmoradian/kln/internal/utility"
+	kln "github.com/adelmoradian/kln/pkg"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -22,16 +21,16 @@ kln flag
 kln flag -u
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		dynamicClient := kutility.GetDynamicClient(kubeconfig)
-		config := kutility.ReadFile(file)
+		dynamicClient := kln.GetDynamicClient(kubeconfig)
+		config := kln.ReadFile(file)
 		err := yaml.Unmarshal(config, &riList)
 		if err != nil {
 			panic(err)
 		}
 		for _, ri := range riList.Items {
-			err := kflag.FlagForDeletion(dynamicClient, ri, undoSwitch)
+			err := kln.FlagForDeletion(dynamicClient, ri, undoSwitch)
 			if err != nil {
-				kutility.ErrorLog.Println(err)
+				kln.ErrorLog.Println(err)
 			}
 		}
 	},

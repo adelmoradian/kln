@@ -1,46 +1,17 @@
-package flag
+package kln
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
-
-	kutility "github.com/adelmoradian/kln/internal/utility"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 )
 
-func FlagForDeletion(client dynamic.Interface, ri kutility.ResourceIdentifier, undoSwitch bool) error {
-	resources := ListResources(client, ri)
-	if len(resources) == 0 {
-		return errors.New(fmt.Sprintf("did not find any resources that match the criteria:\n%v", ri))
-	}
-
-	for _, resource := range resources {
-		var patch []byte
-		ns := resource.GetNamespace()
-		name := resource.GetName()
-		if undoSwitch {
-			patch = []byte(`{"metadata":{"labels":{"kln.com/delete":"false"}}}`)
-		} else {
-			patch = []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
-		}
-		kutility.InfoLog.Printf("Labelling %s %s in %s ns - dryRun %v", name, resource.GetKind(), ns, undoSwitch)
-		_, err := client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func ListResources(client dynamic.Interface, ri kutility.ResourceIdentifier) []unstructured.Unstructured {
+func ListResources(client dynamic.Interface, ri ResourceIdentifier) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
-	kutility.InfoLog.Printf("--- GVR: %s, Name: %s, Description: %s\n", ri.GVR, ri.Name, ri.Description)
+	InfoLog.Printf("--- GVR: %s, Name: %s, Description: %s\n", ri.GVR, ri.Name, ri.Description)
 	responseFromServer, err := client.Resource(ri.GVR).List(context.TODO(), v1.ListOptions{})
 	if err != nil {
 		return responseList
@@ -52,7 +23,7 @@ func ListResources(client dynamic.Interface, ri kutility.ResourceIdentifier) []u
 		age := response.GetCreationTimestamp()
 		ns := response.GetNamespace()
 		name := response.GetName()
-		kutility.InfoLog.Printf("Name: %s, Namespace: %s, Age: %s\n", name, ns, time.Since(age.Time))
+		InfoLog.Printf("Name: %s, Namespace: %s, Age: %s\n", name, ns, time.Since(age.Time))
 	}
 	return responseList
 }
@@ -81,7 +52,7 @@ func filterByMetadata(responseFromServer []unstructured.Unstructured, metadataFi
 	}
 	for _, item := range responseFromServer {
 		objectMeta := item.Object["metadata"].(map[string]interface{})
-		if kutility.MapIntersection(metadataFilter, objectMeta) {
+		if MapIntersection(metadataFilter, objectMeta) {
 			responseList = append(responseList, item)
 		}
 	}
@@ -95,7 +66,7 @@ func filterByStatus(responseFromServer []unstructured.Unstructured, statusFilter
 	}
 	for _, item := range responseFromServer {
 		objectStatus := item.Object["status"].(map[string]interface{})
-		if kutility.MapIntersection(statusFilter, objectStatus) {
+		if MapIntersection(statusFilter, objectStatus) {
 			responseList = append(responseList, item)
 		}
 	}
