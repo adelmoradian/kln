@@ -52,7 +52,7 @@ func filterByMetadata(responseFromServer []unstructured.Unstructured, metadataFi
 	}
 	for _, item := range responseFromServer {
 		objectMeta := item.Object["metadata"].(map[string]interface{})
-		if MapIntersection(metadataFilter, objectMeta) {
+		if mapIntersection(metadataFilter, objectMeta) {
 			responseList = append(responseList, item)
 		}
 	}
@@ -66,7 +66,7 @@ func filterByStatus(responseFromServer []unstructured.Unstructured, statusFilter
 	}
 	for _, item := range responseFromServer {
 		objectStatus := item.Object["status"].(map[string]interface{})
-		if MapIntersection(statusFilter, objectStatus) {
+		if mapIntersection(statusFilter, objectStatus) {
 			responseList = append(responseList, item)
 		}
 	}

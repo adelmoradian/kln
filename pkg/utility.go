@@ -32,14 +32,14 @@ type ResourceIdentifier struct {
 	Description string                      `yaml:"description"`
 }
 
-func MapIntersection(mapA, mapB map[string]interface{}) bool {
+func mapIntersection(mapA, mapB map[string]interface{}) bool {
 	for k, vA := range mapA {
-		if vB, ok := mapB[k]; ok && Typeof(vA) == Typeof(vB) {
-			if Typeof(vA) == "map[string]interface {}" {
-				return MapIntersection(vA.(map[string]interface{}), vB.(map[string]interface{}))
+		if vB, ok := mapB[k]; ok && typeof(vA) == typeof(vB) {
+			if typeof(vA) == "map[string]interface {}" {
+				return mapIntersection(vA.(map[string]interface{}), vB.(map[string]interface{}))
 			}
-			if Typeof(vA) == "[]interface {}" {
-				return ArrayIntersection(vA.([]interface{}), vB.([]interface{}))
+			if typeof(vA) == "[]interface {}" {
+				return arrayIntersection(vA.([]interface{}), vB.([]interface{}))
 			}
 			if vA != vB {
 				return false
@@ -51,28 +51,28 @@ func MapIntersection(mapA, mapB map[string]interface{}) bool {
 	return true
 }
 
-func ArrayIntersection(sliceSmall, sliceBig []interface{}) bool {
+func arrayIntersection(sliceSmall, sliceBig []interface{}) bool {
 	if len(sliceSmall) > len(sliceBig) {
 		return false
 	}
 	for _, vSmall := range sliceSmall {
-		if !Contains(sliceBig, vSmall) {
+		if !contains(sliceBig, vSmall) {
 			return false
 		}
 	}
 	return true
 }
 
-func Contains(sliceBig []interface{}, vSmall interface{}) bool {
+func contains(sliceBig []interface{}, vSmall interface{}) bool {
 	for _, vBig := range sliceBig {
-		if Typeof(vBig) != Typeof(vSmall) {
+		if typeof(vBig) != typeof(vSmall) {
 			return false
 		}
-		if Typeof(vBig) == "map[string]interface {}" {
-			return MapIntersection(vSmall.(map[string]interface{}), vBig.(map[string]interface{}))
+		if typeof(vBig) == "map[string]interface {}" {
+			return mapIntersection(vSmall.(map[string]interface{}), vBig.(map[string]interface{}))
 		}
-		if Typeof(vBig) == "[]interface {}" {
-			return ArrayIntersection(vSmall.([]interface{}), vBig.([]interface{}))
+		if typeof(vBig) == "[]interface {}" {
+			return arrayIntersection(vSmall.([]interface{}), vBig.([]interface{}))
 		}
 		if vSmall != vBig {
 			return false
@@ -81,7 +81,7 @@ func Contains(sliceBig []interface{}, vSmall interface{}) bool {
 	return true
 }
 
-func Typeof(v interface{}) string {
+func typeof(v interface{}) string {
 	return fmt.Sprintf("%T", v)
 }
 
