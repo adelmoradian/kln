@@ -3,30 +3,40 @@ package kln
 import (
 	"context"
 	"testing"
-	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
 func TestReal(t *testing.T) {
-	resource1 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name1"}, status1)
-	resource2 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns", "name": "name2"}, status2)
-	resource3 := CreateResource(customGVR, map[string]interface{}{"namespace": "ns3", "name": "name3"}, status3)
-	client := SetupFakeDynamicClient(t, resource1, resourceFake)
-	manifest1 := NewUnstructured(t, resource1, time.Now().Add(-10*time.Minute).Format(RFC3339))
-	manifest2 := NewUnstructured(t, resource2, time.Now().Add(-40*time.Minute).Format(RFC3339))
-	manifest3 := NewUnstructured(t, resource3, time.Now().Add(-70*time.Minute).Format(RFC3339))
-	ApplyResource(t, client, resource1, manifest1)
-	ApplyResource(t, client, resource2, manifest2)
-	response3 := ApplyResource(t, client, resource3, manifest3)
+	scheme := runtime.NewScheme()
+	scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: aGVRK.GVR.Group, Version: aGVRK.GVR.Version, Kind: aGVRK.Kind + "List"}, &unstructured.Unstructured{})
+	scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: fakeGVRK.GVR.Group, Version: fakeGVRK.GVR.Version, Kind: fakeGVRK.Kind + "List"}, &unstructured.Unstructured{})
+	client := dynamicfake.NewSimpleDynamicClient(scheme)
+	_, err := client.Resource(aGVRK.GVR).Namespace("ns").Create(context.TODO(), r1, v1.CreateOptions{})
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = client.Resource(aGVRK.GVR).Namespace("ns").Create(context.TODO(), r2, v1.CreateOptions{})
+	if err != nil {
+		t.Error(err)
+	}
+	response3, err := client.Resource(aGVRK.GVR).Namespace("ns3").Create(context.TODO(), r3, v1.CreateOptions{})
+	if err != nil {
+		t.Error(err)
+	}
+
 	patchTrue := []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
 	patchFalse := []byte(`{"metadata":{"labels":{"kln.com/delete":"false"}}}`)
-	ri := ResourceIdentifier{GVR: resource1.GVR}
-	ns1 := resource1.Metadata["namespace"].(string)
-	name1 := resource1.Metadata["name"].(string)
-	ns2 := resource2.Metadata["namespace"].(string)
-	name2 := resource2.Metadata["name"].(string)
+	ri := ResourceIdentifier{GVR: aGVRK.GVR}
+	ns1 := "ns"
+	name1 := "name1"
+	ns2 := "ns"
+	name2 := "name2"
 	client.Resource(ri.GVR).Namespace(ns1).Patch(context.TODO(), name1, types.MergePatchType, patchTrue, v1.PatchOptions{})
 	response2, _ := client.Resource(ri.GVR).Namespace(ns2).Patch(context.TODO(), name2, types.MergePatchType, patchFalse, v1.PatchOptions{})
 	t.Run("happy - deletes only the resource which is labeled", func(t *testing.T) {
