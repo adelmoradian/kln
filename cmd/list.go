@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	kflag "github.com/adelmoradian/kln/internal/flag"
-	kutility "github.com/adelmoradian/kln/internal/utility"
+	kln "github.com/adelmoradian/kln/pkg"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
 type RiList struct {
-	Items []kutility.ResourceIdentifier `yaml:"items"`
+	Items []kln.ResourceIdentifier `yaml:"items"`
 }
 
 var riList RiList
@@ -24,14 +23,14 @@ kln list
 # Provide path to resource identifier
 kln list -f ../rltv/path/to/identifier.yaml`,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := kutility.GetDynamicClient(kubeconfig)
-		config := kutility.ReadFile(file)
+		client := kln.GetDynamicClient(kubeconfig)
+		config := kln.ReadFile(file)
 		err := yaml.Unmarshal(config, &riList)
 		if err != nil {
 			panic(err)
 		}
 		for _, ri := range riList.Items {
-			kflag.ListResources(client, ri)
+			kln.ListResources(client, ri)
 		}
 	},
 }

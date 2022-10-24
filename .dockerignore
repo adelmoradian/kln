@@ -1,4 +1,5 @@
 .git
 .go-pkg-cache
 .gopath
+examples
 *.md
