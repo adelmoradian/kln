@@ -16,7 +16,6 @@ import (
 func TestFlagForDeletion(t *testing.T) {
 	scheme := runtime.NewScheme()
 	scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: aGVRK.GVR.Group, Version: aGVRK.GVR.Version, Kind: aGVRK.Kind + "List"}, &unstructured.Unstructured{})
-	scheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: fakeGVRK.GVR.Group, Version: fakeGVRK.GVR.Version, Kind: fakeGVRK.Kind + "List"}, &unstructured.Unstructured{})
 	client := dynamicfake.NewSimpleDynamicClient(scheme)
 	_, err := client.Resource(aGVRK.GVR).Namespace("ns").Create(context.TODO(), r1, v1.CreateOptions{})
 	if err != nil {
@@ -30,75 +29,51 @@ func TestFlagForDeletion(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-
 	ri := ResourceIdentifier{GVR: aGVRK.GVR, MinAge: 0.5}
-	ns := "ns"
-	name := "name2"
+	labelFalse := []byte(`{"metadata":{"labels":{"kln.com/delete":"false"}}}`)
+	labelTrue := []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
+	client.Resource(ri.GVR).Namespace("ns").Patch(context.TODO(), "name1", types.MergePatchType, labelTrue, v1.PatchOptions{})
+	client.Resource(ri.GVR).Namespace("ns3").Patch(context.TODO(), "name3", types.MergePatchType, labelFalse, v1.PatchOptions{})
 
-	t.Run("happy - resource has no existing label", func(t *testing.T) {
+	t.Run("happy - flagging resources", func(t *testing.T) {
+		flagAssertion(t, client, ri.GVR, r1, true, "true")
+		flagAssertion(t, client, ri.GVR, r2, false, "true")
+		flagAssertion(t, client, ri.GVR, r3, true, "false")
 		err := FlagForDeletion(client, ri, false)
-		flagAssertion(t, client, ri.GVR, name, ns, "true", err)
-	})
-
-	t.Run("happy - kln.com/delete label is initially false", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"labels":{"kln.com/delete":"false"}}}`)
-		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := FlagForDeletion(client, ri, false)
-		flagAssertion(t, client, ri.GVR, name, ns, "true", err)
-	})
-
-	t.Run("happy - resource has some label", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"labels":{"foo":"bar"}}}`)
-		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := FlagForDeletion(client, ri, false)
-		labels := flagAssertion(t, client, ri.GVR, name, ns, "true", err)
-		if _, ok := labels["foo"]; !ok {
-			t.Error("original label was lost")
+		if err != nil {
+			t.Error(err)
 		}
+		flagAssertion(t, client, ri.GVR, r1, true, "true")
+		flagAssertion(t, client, ri.GVR, r2, true, "true")
+		flagAssertion(t, client, ri.GVR, r3, true, "true")
 	})
 
-	t.Run("undo - resource has no existing label", func(t *testing.T) {
+	t.Run("happy - unflag resources", func(t *testing.T) {
 		err := FlagForDeletion(client, ri, true)
-		flagAssertion(t, client, ri.GVR, name, ns, "false", err)
-	})
-
-	t.Run("undo - kln.com/delete label is initially true", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
-		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := FlagForDeletion(client, ri, true)
-		flagAssertion(t, client, ri.GVR, name, ns, "false", err)
-	})
-
-	t.Run("undo - resource has some labels", func(t *testing.T) {
-		patch := []byte(`{"metadata":{"labels":{"foo":"bar"}}}`)
-		client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
-		err := FlagForDeletion(client, ri, true)
-		labels := flagAssertion(t, client, ri.GVR, name, ns, "false", err)
-		if _, ok := labels["foo"]; !ok {
-			t.Error("original label was lost")
+		if err != nil {
+			t.Error(err)
 		}
+		flagAssertion(t, client, ri.GVR, r1, true, "true")
+		flagAssertion(t, client, ri.GVR, r2, true, "false")
+		flagAssertion(t, client, ri.GVR, r3, true, "false")
 	})
 }
 
-func flagAssertion(t *testing.T, client *dynamicfake.FakeDynamicClient, gvr schema.GroupVersionResource, name, ns, key string, err error) map[string]string {
+func flagAssertion(t *testing.T, client *dynamicfake.FakeDynamicClient, gvr schema.GroupVersionResource, resource *unstructured.Unstructured, hasLabel bool, flagIs string) {
 	t.Helper()
 
-	if err != nil {
-		t.Error(err)
-	}
+	ns := resource.Object["metadata"].(map[string]interface{})["namespace"].(string)
+	name := resource.Object["metadata"].(map[string]interface{})["name"].(string)
+
 	item, err := client.Resource(gvr).Namespace(ns).Get(context.TODO(), name, v1.GetOptions{})
 	if err != nil {
 		t.Error(err)
 	}
 	labels := item.GetLabels()
-	if labels == nil {
-		t.Errorf("got no labels")
+	if _, ok := labels["kln.com/delete"]; ok != hasLabel {
+		t.Errorf("expectation to have the kln.com/delete label not satisfied. got %v, want %v", ok, hasLabel)
 	}
-	if _, ok := labels["kln.com/delete"]; !ok {
-		t.Errorf("%s does not contain the kln.com/delete key", labels)
+	if value, ok := labels["kln.com/delete"]; ok && value != flagIs {
+		t.Errorf("got label value %s, want %s", value, flagIs)
 	}
-	if value, _ := labels["kln.com/delete"]; value != key {
-		t.Errorf("got %s, want %s", value, key)
-	}
-	return labels
 }

@@ -25,7 +25,6 @@ func FlagForDeletion(client dynamic.Interface, ri ResourceIdentifier, undoSwitch
 		} else {
 			patch = []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
 		}
-		InfoLog.Printf("Labelling %s %s in %s ns - dryRun %v", name, resource.GetKind(), ns, undoSwitch)
 		_, err := client.Resource(ri.GVR).Namespace(ns).Patch(context.TODO(), name, types.MergePatchType, patch, v1.PatchOptions{})
 		if err != nil {
 			return err

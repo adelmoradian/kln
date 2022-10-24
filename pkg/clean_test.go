@@ -33,12 +33,8 @@ func TestReal(t *testing.T) {
 	patchTrue := []byte(`{"metadata":{"labels":{"kln.com/delete":"true"}}}`)
 	patchFalse := []byte(`{"metadata":{"labels":{"kln.com/delete":"false"}}}`)
 	ri := ResourceIdentifier{GVR: aGVRK.GVR}
-	ns1 := "ns"
-	name1 := "name1"
-	ns2 := "ns"
-	name2 := "name2"
-	client.Resource(ri.GVR).Namespace(ns1).Patch(context.TODO(), name1, types.MergePatchType, patchTrue, v1.PatchOptions{})
-	response2, _ := client.Resource(ri.GVR).Namespace(ns2).Patch(context.TODO(), name2, types.MergePatchType, patchFalse, v1.PatchOptions{})
+	client.Resource(ri.GVR).Namespace("ns").Patch(context.TODO(), "name1", types.MergePatchType, patchTrue, v1.PatchOptions{})
+	response2, _ := client.Resource(ri.GVR).Namespace("ns").Patch(context.TODO(), "name2", types.MergePatchType, patchFalse, v1.PatchOptions{})
 	t.Run("happy - deletes only the resource which is labeled", func(t *testing.T) {
 		err := DeleteResources(client, ri.GVR)
 		if err != nil {
