@@ -17,8 +17,9 @@ func ListResources(client dynamic.Interface, ri ResourceIdentifier) []unstructur
 		return responseList
 	}
 	responseList, err = filterByAge(responseFromServer, ri.MinAge)
-	responseList = filterByMetadata(responseList, ri.Metadata)
-	responseList = filterByStatus(responseList, ri.Status)
+	if len(responseList) != 0 {
+		responseList = filter(responseList, map[string]interface{}{"metadata": ri.Metadata, "spec": ri.Spec, "status": ri.Status})
+	}
 	return responseList
 }
 
@@ -39,30 +40,20 @@ func filterByAge(responseFromServer *unstructured.UnstructuredList, minAgeFilter
 	return responseList, nil
 }
 
-func filterByMetadata(responseFromServer []unstructured.Unstructured, metadataFilter map[string]interface{}) []unstructured.Unstructured {
+func filter(responseFromServer []unstructured.Unstructured, filters map[string]interface{}) []unstructured.Unstructured {
 	var responseList []unstructured.Unstructured
-	if metadataFilter == nil {
-		return responseFromServer
-	}
-	for _, item := range responseFromServer {
-		objectMeta := item.Object["metadata"].(map[string]interface{})
-		if mapIntersection(metadataFilter, objectMeta) {
-			responseList = append(responseList, item)
+	for k, v := range filters {
+		filter := v.(map[string]interface{})
+		if filter == nil {
+			continue
 		}
-	}
-	return responseList
-}
-
-func filterByStatus(responseFromServer []unstructured.Unstructured, statusFilter map[string]interface{}) []unstructured.Unstructured {
-	var responseList []unstructured.Unstructured
-	if statusFilter == nil {
-		return responseFromServer
-	}
-	for _, item := range responseFromServer {
-		objectStatus := item.Object["status"].(map[string]interface{})
-		if mapIntersection(statusFilter, objectStatus) {
-			responseList = append(responseList, item)
+		for _, item := range responseFromServer {
+			objectField := item.Object[k].(map[string]interface{})
+			if mapIntersection(filter, objectField) && !arrayInclude(responseList, item) {
+				responseList = append(responseList, item)
+			}
 		}
+		responseFromServer = responseList
 	}
-	return responseList
+	return responseFromServer
 }

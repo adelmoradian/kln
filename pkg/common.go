@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
@@ -104,4 +106,13 @@ func ReadFile(file string) []byte {
 		panic(err)
 	}
 	return config
+}
+
+func arrayInclude(array []unstructured.Unstructured, element unstructured.Unstructured) bool {
+	for _, e := range array {
+		if equality.Semantic.DeepEqual(e.Object, element.Object) {
+			return true
+		}
+	}
+	return false
 }

@@ -174,8 +174,8 @@ func TestListResources(t *testing.T) {
 		},
 
 		{
-			name: "happy - finds resources given status",
-			ri:   ResourceIdentifier{GVR: aGVRK.GVR, Status: map[string]interface{}{"foo": "bar"}},
+			name: "happy - finds resources given status and metadata",
+			ri:   ResourceIdentifier{GVR: aGVRK.GVR, Status: map[string]interface{}{"foo": "bar"}, Metadata: map[string]interface{}{"namespace": "ns"}},
 			want: []map[string]interface{}{response1.Object, response2.Object},
 			skip: false,
 		},
