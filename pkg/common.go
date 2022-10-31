@@ -25,7 +25,6 @@ const (
 type ResourceIdentifier struct {
 	GVR         schema.GroupVersionResource `yaml:"gvr"`
 	MinAge      float64                     `yaml:"minAge"`
-	ApiVersion  string                      `yaml:"apiVersion"`
 	Metadata    map[string]interface{}      `yaml:"metadata"`
 	Spec        map[string]interface{}      `yaml:"spec"`
 	Status      map[string]interface{}      `yaml:"status"`
@@ -107,7 +106,7 @@ func ReadFile(file string) []byte {
 	return config
 }
 
-func arrayInclude(array []unstructured.Unstructured, element unstructured.Unstructured) bool {
+func unstructuredArrayInclude(array []unstructured.Unstructured, element unstructured.Unstructured) bool {
 	for _, e := range array {
 		if equality.Semantic.DeepEqual(e.Object, element.Object) {
 			return true

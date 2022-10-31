@@ -2,6 +2,7 @@ package kln
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,10 +15,11 @@ import (
 )
 
 type listTestCases struct {
-	name string
-	ri   ResourceIdentifier
-	want []map[string]interface{}
-	skip bool
+	name      string
+	ri        ResourceIdentifier
+	want      []map[string]interface{}
+	wantError error
+	skip      bool
 }
 
 type GVRK struct {
@@ -146,6 +148,14 @@ func TestListResources(t *testing.T) {
 		},
 
 		{
+			name:      "sad - minAge in negative",
+			ri:        ResourceIdentifier{GVR: aGVRK.GVR, MinAge: -1.5},
+			want:      nil,
+			wantError: errors.New("minAge cannot be negative"),
+			skip:      false,
+		},
+
+		{
 			name: "happy - finds resources given metadata",
 			ri:   ResourceIdentifier{GVR: aGVRK.GVR, Metadata: map[string]interface{}{"namespace": "ns"}},
 			want: []map[string]interface{}{response1.Object, response2.Object},
@@ -214,7 +224,15 @@ func TestListResources(t *testing.T) {
 			if tc.skip {
 				t.Skip()
 			}
-			got, _ := ListResources(client, tc.ri)
+			got, err := ListResources(client, tc.ri)
+			if tc.wantError != nil {
+				if err == nil {
+					t.Errorf("expected error \n%v\nbut did not get any", tc.wantError)
+				}
+				if err.Error() != tc.wantError.Error() {
+					t.Errorf("expected error \n%v\nbut did got\n%v", tc.wantError.Error(), err.Error())
+				}
+			}
 			if len(tc.want) != len(got) {
 				t.Errorf("Expected %d items but got %d", len(tc.want), len(got))
 			}

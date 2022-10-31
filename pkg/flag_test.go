@@ -36,10 +36,6 @@ func TestFlagForDeletion(t *testing.T) {
 	client.Resource(ri.GVR).Namespace("ns3").Patch(context.TODO(), "name3", types.MergePatchType, labelFalse, v1.PatchOptions{})
 
 	t.Run("happy - flagging resources", func(t *testing.T) {
-		flagAssertion(t, client, ri.GVR, r1, true, "true")
-		flagAssertion(t, client, ri.GVR, r2, false, "")
-		flagAssertion(t, client, ri.GVR, r3, true, "false")
-
 		err := FlagForDeletion(client, ri, true)
 		if err != nil {
 			t.Error(err)
@@ -51,7 +47,6 @@ func TestFlagForDeletion(t *testing.T) {
 	})
 
 	t.Run("happy - unflag resources", func(t *testing.T) {
-
 		err := FlagForDeletion(client, ri, false)
 		if err != nil {
 			t.Error(err)

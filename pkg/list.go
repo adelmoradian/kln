@@ -60,7 +60,7 @@ func filterByField(responseFromServer []unstructured.Unstructured, filters map[s
 
 		for _, item := range responseFromServer {
 			objectField := item.Object[field].(map[string]interface{})
-			if mapIntersection(filter, objectField) && !arrayInclude(responseList, item) {
+			if mapIntersection(filter, objectField) && !unstructuredArrayInclude(responseList, item) {
 				responseList = append(responseList, item)
 			}
 		}
