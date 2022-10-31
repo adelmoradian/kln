@@ -6,7 +6,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var undoSwitch bool
+var cleanSwitch bool
 
 var flagCmd = &cobra.Command{
 	Use:   "flag",
@@ -18,7 +18,7 @@ changing the label from true to to false`,
 kln flag
 
 # Undo the deletion flag by patching label "kln.com/delete=false"
-kln flag -u
+kln flag -d=false
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		dynamicClient := kln.GetDynamicClient(kubeconfig)
@@ -28,7 +28,7 @@ kln flag -u
 			panic(err)
 		}
 		for _, ri := range riList.Items {
-			err := kln.FlagForDeletion(dynamicClient, ri, undoSwitch)
+			err := kln.FlagForDeletion(dynamicClient, ri, cleanSwitch)
 			if err != nil {
 				kln.ErrorLog.Println(err)
 			}
@@ -38,5 +38,5 @@ kln flag -u
 
 func init() {
 	rootCmd.AddCommand(flagCmd)
-	flagCmd.Flags().BoolVarP(&undoSwitch, "undo", "u", false, "When provided, will label kln.com/delete: false")
+	flagCmd.Flags().BoolVarP(&cleanSwitch, "delete", "d", true, "When false, will label kln.com/delete: false")
 }
