@@ -214,7 +214,7 @@ func TestListResources(t *testing.T) {
 			if tc.skip {
 				t.Skip()
 			}
-			got := ListResources(client, tc.ri)
+			got, _ := ListResources(client, tc.ri)
 			if len(tc.want) != len(got) {
 				t.Errorf("Expected %d items but got %d", len(tc.want), len(got))
 			}

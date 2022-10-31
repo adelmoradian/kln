@@ -26,7 +26,7 @@ kln list -f ../rltv/path/to/identifier.yaml
 kln flag
 
 # Undo the deletion flag by patching label "kln.com/delete=false"
-kln flag -u
+kln flag -d=false
 
 # Delete resources that have "kln.com/delete=true" label
 kln delete`,

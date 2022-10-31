@@ -37,22 +37,26 @@ func TestFlagForDeletion(t *testing.T) {
 
 	t.Run("happy - flagging resources", func(t *testing.T) {
 		flagAssertion(t, client, ri.GVR, r1, true, "true")
-		flagAssertion(t, client, ri.GVR, r2, false, "true")
+		flagAssertion(t, client, ri.GVR, r2, false, "")
 		flagAssertion(t, client, ri.GVR, r3, true, "false")
-		err := FlagForDeletion(client, ri, false)
+
+		err := FlagForDeletion(client, ri, true)
 		if err != nil {
 			t.Error(err)
 		}
+
 		flagAssertion(t, client, ri.GVR, r1, true, "true")
 		flagAssertion(t, client, ri.GVR, r2, true, "true")
 		flagAssertion(t, client, ri.GVR, r3, true, "true")
 	})
 
 	t.Run("happy - unflag resources", func(t *testing.T) {
-		err := FlagForDeletion(client, ri, true)
+
+		err := FlagForDeletion(client, ri, false)
 		if err != nil {
 			t.Error(err)
 		}
+
 		flagAssertion(t, client, ri.GVR, r1, true, "true")
 		flagAssertion(t, client, ri.GVR, r2, true, "false")
 		flagAssertion(t, client, ri.GVR, r3, true, "false")

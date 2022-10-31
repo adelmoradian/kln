@@ -26,7 +26,6 @@ type ResourceIdentifier struct {
 	GVR         schema.GroupVersionResource `yaml:"gvr"`
 	MinAge      float64                     `yaml:"minAge"`
 	ApiVersion  string                      `yaml:"apiVersion"`
-	Kind        string                      `yaml:"kind"`
 	Metadata    map[string]interface{}      `yaml:"metadata"`
 	Spec        map[string]interface{}      `yaml:"spec"`
 	Status      map[string]interface{}      `yaml:"status"`
